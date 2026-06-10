@@ -152,6 +152,14 @@ fn get_store_catalog() -> Vec<StorePlugin> {
 }
 
 #[tauri::command]
+fn get_store_categories() -> serde_json::Value {
+    let cats = store::categories();
+    serde_json::json!(cats.into_iter().map(|(cat, subs)| {
+        serde_json::json!({ "name": cat, "subcategories": subs })
+    }).collect::<Vec<_>>())
+}
+
+#[tauri::command]
 async fn install_store_plugin(
     zip_url: String,
     bundle_name: String,
@@ -319,7 +327,7 @@ pub fn run() {
             create_plugin, create_plugin_from_template, get_plugin_templates,
             read_plugin_code, write_plugin_code,
             // Store
-            get_store_catalog, install_store_plugin, get_installed_plugin_ids,
+            get_store_catalog, get_store_categories, install_store_plugin, get_installed_plugin_ids,
             // Export
             export_plugin, export_all_plugins, get_export_dir,
             // Database

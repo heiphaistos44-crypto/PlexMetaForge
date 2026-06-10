@@ -79,6 +79,7 @@ export interface StorePlugin {
   author: string;
   description: string;
   category: string;
+  subcategory: string;
   tags: string[];
   license: string;
   stars: string;
@@ -86,6 +87,11 @@ export interface StorePlugin {
   zip_url: string;
   bundle_name: string;
   verified: boolean;
+}
+
+export interface StoreCategory {
+  name: string;
+  subcategories: string[];
 }
 
 export interface InstallResult {

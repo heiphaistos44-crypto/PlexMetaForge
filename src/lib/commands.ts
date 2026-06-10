@@ -13,6 +13,7 @@ import type {
   PlexSection,
   PluginConfig,
   PluginTemplateMeta,
+  StoreCategory,
   StorePlugin,
 } from './types';
 
@@ -57,6 +58,9 @@ export const searchPlexDb = (query: string): Promise<MediaItem[]> =>
 // Store
 export const getStoreCatalog = (): Promise<StorePlugin[]> =>
   invoke('get_store_catalog');
+
+export const getStoreCategories = (): Promise<StoreCategory[]> =>
+  invoke('get_store_categories');
 
 export const installStorePlugin = (zipUrl: string, bundleName: string): Promise<InstallResult> =>
   invoke('install_store_plugin', { zipUrl, bundleName });

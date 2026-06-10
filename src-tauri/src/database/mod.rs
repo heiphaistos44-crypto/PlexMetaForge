@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OpenFlags, params};
+use rusqlite::{Connection, OpenFlags, params, types::Value};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use crate::error::{PlexMetaForgeError, Result};
@@ -49,6 +49,79 @@ pub struct BatchUpdateResult {
     pub errors: Vec<String>,
 }
 
+// ─── Helpers types ────────────────────────────────────────────
+
+/// Lit une valeur rusqlite (TEXT ou INTEGER) et la convertit en String
+fn val_to_string(v: Value) -> String {
+    match v {
+        Value::Text(s) => s,
+        Value::Integer(i) => section_type_from_int(i),
+        Value::Real(f) => f.to_string(),
+        _ => String::new(),
+    }
+}
+
+/// Plex stocke section_type comme entier dans certaines versions
+fn section_type_from_int(i: i64) -> String {
+    match i {
+        1 => "movie".to_string(),
+        2 => "show".to_string(),
+        3 => "show".to_string(),
+        8 => "artist".to_string(),
+        13 => "photo".to_string(),
+        _ => format!("type_{}", i),
+    }
+}
+
+/// Plex stocke originally_available_at comme date julienne (REAL) ou texte
+fn val_to_date_string(v: Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::Text(s) if s.is_empty() => None,
+        Value::Text(s) => Some(s),
+        Value::Integer(i) if i == 0 => None,
+        Value::Integer(i) => {
+            // Julian day number → approximation YYYY-MM-DD
+            julian_to_date(i as f64)
+        }
+        Value::Real(f) if f == 0.0 => None,
+        Value::Real(f) => julian_to_date(f),
+        _ => None,
+    }
+}
+
+/// Convertit un numéro de jour julien en "YYYY-MM-DD"
+fn julian_to_date(jd: f64) -> Option<String> {
+    // Julian Day Number → Gregorian calendar
+    let jd = jd as i64;
+    if jd < 1000000 {
+        // Probably a Unix timestamp in seconds
+        let secs = jd;
+        let days_since_epoch = secs / 86400;
+        let epoch_jd: i64 = 2440588; // JD for 1970-01-01
+        return julian_jd_to_date(epoch_jd + days_since_epoch);
+    }
+    julian_jd_to_date(jd)
+}
+
+fn julian_jd_to_date(jd: i64) -> Option<String> {
+    // Algorithm to convert JD to calendar date
+    let l = jd + 68569;
+    let n = 4 * l / 146097;
+    let l = l - (146097 * n + 3) / 4;
+    let i = 4000 * (l + 1) / 1461001;
+    let l = l - 1461 * i / 4 + 31;
+    let j = 80 * l / 2447;
+    let day = l - 2447 * j / 80;
+    let l = j / 11;
+    let month = j + 2 - 12 * l;
+    let year = 100 * (n - 49) + i + l;
+    if year < 1800 || year > 2100 {
+        return None;
+    }
+    Some(format!("{:04}-{:02}-{:02}", year, month, day))
+}
+
 // ─── Database ─────────────────────────────────────────────────
 
 pub struct PlexDatabase {
@@ -86,37 +159,39 @@ impl PlexDatabase {
         };
 
         Ok(DatabaseStats {
-            total_items:            count("SELECT COUNT(*) FROM metadata_items")?,
-            movies:                 count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 1")?,
-            shows:                  count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 2")?,
-            episodes:               count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 4")?,
-            artists:                count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 8")?,
-            albums:                 count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 9")?,
-            tracks:                 count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 10")?,
-            sections:               count("SELECT COUNT(*) FROM library_sections")?,
-            items_with_thumb:       count("SELECT COUNT(*) FROM metadata_items WHERE user_thumb_url IS NOT NULL AND user_thumb_url != ''")?,
-            items_without_summary:  count("SELECT COUNT(*) FROM metadata_items WHERE (summary IS NULL OR summary = '') AND metadata_type IN (1,2,4)")?,
+            total_items:           count("SELECT COUNT(*) FROM metadata_items")?,
+            movies:                count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 1")?,
+            shows:                 count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 2")?,
+            episodes:              count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 4")?,
+            artists:               count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 8")?,
+            albums:                count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 9")?,
+            tracks:                count("SELECT COUNT(*) FROM metadata_items WHERE metadata_type = 10")?,
+            sections:              count("SELECT COUNT(*) FROM library_sections")?,
+            items_with_thumb:      count("SELECT COUNT(*) FROM metadata_items WHERE user_thumb_url IS NOT NULL AND user_thumb_url != ''")?,
+            items_without_summary: count("SELECT COUNT(*) FROM metadata_items WHERE (summary IS NULL OR summary = '') AND metadata_type IN (1,2,4)")?,
         })
     }
 
     // ─── Sections ───────────────────────────────────────────
 
     pub fn get_sections(&self) -> Result<Vec<PlexSection>> {
-        // Try with location join first; fall back if table/column doesn't exist
-        let sql_with_loc = "SELECT ls.id, ls.name, ls.section_type, lsp.root_path
-             FROM library_sections ls
-             LEFT JOIN library_section_locations lsp ON lsp.library_section_id = ls.id
-             GROUP BY ls.id ORDER BY ls.name";
-        let sql_no_loc = "SELECT id, name, section_type, NULL FROM library_sections ORDER BY name";
+        // section_type peut être TEXT ('movie') ou INTEGER (1) selon la version Plex
+        // On lit comme Value pour gérer les deux cas
+        let sql = "SELECT ls.id, ls.name, ls.section_type, lsp.root_path
+                   FROM library_sections ls
+                   LEFT JOIN library_section_locations lsp ON lsp.library_section_id = ls.id
+                   GROUP BY ls.id ORDER BY ls.name";
+        let sql_fallback = "SELECT id, name, section_type, NULL FROM library_sections ORDER BY name";
 
-        let mut stmt = self.conn.prepare(sql_with_loc)
-            .or_else(|_| self.conn.prepare(sql_no_loc))?;
+        let mut stmt = self.conn.prepare(sql)
+            .or_else(|_| self.conn.prepare(sql_fallback))?;
 
         let rows = stmt.query_map([], |row| {
+            let section_type_val: Value = row.get(2)?;
             Ok(PlexSection {
                 id:           row.get(0)?,
                 name:         row.get(1)?,
-                section_type: row.get(2)?,
+                section_type: val_to_string(section_type_val),
                 location:     row.get(3)?,
             })
         })?
@@ -129,6 +204,7 @@ impl PlexDatabase {
 
     pub fn search_metadata_items(&self, query: &str) -> Result<Vec<MediaItem>> {
         let pattern = format!("%{}%", query);
+        // originally_available_at : stocké en REAL (Julian date) ou TEXT selon la version
         let mut stmt = self.conn.prepare(
             "SELECT mi.id, mi.title, mi.year, mi.summary, mi.user_thumb_url,
                     mi.metadata_type, mi.library_section_id, mi.duration,
@@ -141,19 +217,20 @@ impl PlexDatabase {
         )?;
 
         let items = stmt.query_map([&pattern], |row| {
+            let date_val: Value = row.get(11)?;
             Ok(MediaItem {
-                id:                       row.get(0)?,
-                title:                    row.get(1)?,
-                year:                     row.get(2)?,
-                summary:                  row.get(3)?,
-                thumb:                    row.get(4)?,
-                media_type:               row.get::<_, Option<i64>>(5)?.map(media_type_label),
-                section_id:               row.get(6)?,
-                duration:                 row.get(7)?,
-                rating:                   row.get(8)?,
-                tagline:                  row.get(9)?,
-                studio:                   row.get(10)?,
-                originally_available_at:  row.get(11)?,
+                id:                      row.get(0)?,
+                title:                   row.get(1)?,
+                year:                    row.get(2)?,
+                summary:                 row.get(3)?,
+                thumb:                   row.get(4)?,
+                media_type:              row.get::<_, Option<i64>>(5)?.map(media_type_label),
+                section_id:              row.get(6)?,
+                duration:                row.get(7)?,
+                rating:                  row.get(8)?,
+                tagline:                 row.get(9)?,
+                studio:                  row.get(10)?,
+                originally_available_at: val_to_date_string(date_val),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -174,19 +251,20 @@ impl PlexDatabase {
         )?;
 
         let items = stmt.query_map(params![section_id, limit], |row| {
+            let date_val: Value = row.get(11)?;
             Ok(MediaItem {
-                id:                       row.get(0)?,
-                title:                    row.get(1)?,
-                year:                     row.get(2)?,
-                summary:                  row.get(3)?,
-                thumb:                    row.get(4)?,
-                media_type:               row.get::<_, Option<i64>>(5)?.map(media_type_label),
-                section_id:               row.get(6)?,
-                duration:                 row.get(7)?,
-                rating:                   row.get(8)?,
-                tagline:                  row.get(9)?,
-                studio:                   row.get(10)?,
-                originally_available_at:  row.get(11)?,
+                id:                      row.get(0)?,
+                title:                   row.get(1)?,
+                year:                    row.get(2)?,
+                summary:                 row.get(3)?,
+                thumb:                   row.get(4)?,
+                media_type:              row.get::<_, Option<i64>>(5)?.map(media_type_label),
+                section_id:              row.get(6)?,
+                duration:                row.get(7)?,
+                rating:                  row.get(8)?,
+                tagline:                 row.get(9)?,
+                studio:                  row.get(10)?,
+                originally_available_at: val_to_date_string(date_val),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -205,19 +283,20 @@ impl PlexDatabase {
         )?;
 
         let result = stmt.query_row([title], |row| {
+            let date_val: Value = row.get(11)?;
             Ok(MediaItem {
-                id:                       row.get(0)?,
-                title:                    row.get(1)?,
-                year:                     row.get(2)?,
-                summary:                  row.get(3)?,
-                thumb:                    row.get(4)?,
-                media_type:               row.get::<_, Option<i64>>(5)?.map(media_type_label),
-                section_id:               row.get(6)?,
-                duration:                 row.get(7)?,
-                rating:                   row.get(8)?,
-                tagline:                  row.get(9)?,
-                studio:                   row.get(10)?,
-                originally_available_at:  row.get(11)?,
+                id:                      row.get(0)?,
+                title:                   row.get(1)?,
+                year:                    row.get(2)?,
+                summary:                 row.get(3)?,
+                thumb:                   row.get(4)?,
+                media_type:              row.get::<_, Option<i64>>(5)?.map(media_type_label),
+                section_id:              row.get(6)?,
+                duration:                row.get(7)?,
+                rating:                  row.get(8)?,
+                tagline:                 row.get(9)?,
+                studio:                  row.get(10)?,
+                originally_available_at: val_to_date_string(date_val),
             })
         });
 
@@ -242,19 +321,20 @@ impl PlexDatabase {
         )?;
 
         let items = stmt.query_map([limit], |row| {
+            let date_val: Value = row.get(11)?;
             Ok(MediaItem {
-                id:                       row.get(0)?,
-                title:                    row.get(1)?,
-                year:                     row.get(2)?,
-                summary:                  row.get(3)?,
-                thumb:                    row.get(4)?,
-                media_type:               row.get::<_, Option<i64>>(5)?.map(media_type_label),
-                section_id:               row.get(6)?,
-                duration:                 row.get(7)?,
-                rating:                   row.get(8)?,
-                tagline:                  row.get(9)?,
-                studio:                   row.get(10)?,
-                originally_available_at:  row.get(11)?,
+                id:                      row.get(0)?,
+                title:                   row.get(1)?,
+                year:                    row.get(2)?,
+                summary:                 row.get(3)?,
+                thumb:                   row.get(4)?,
+                media_type:              row.get::<_, Option<i64>>(5)?.map(media_type_label),
+                section_id:              row.get(6)?,
+                duration:                row.get(7)?,
+                rating:                  row.get(8)?,
+                tagline:                 row.get(9)?,
+                studio:                  row.get(10)?,
+                originally_available_at: val_to_date_string(date_val),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -264,13 +344,7 @@ impl PlexDatabase {
 
     // ─── Write ──────────────────────────────────────────────
 
-    pub fn update_metadata(
-        &self,
-        id: i64,
-        title: &str,
-        year: Option<i32>,
-        summary: &str,
-    ) -> Result<usize> {
+    pub fn update_metadata(&self, id: i64, title: &str, year: Option<i32>, summary: &str) -> Result<usize> {
         let n = self.conn.execute(
             "UPDATE metadata_items SET title = ?1, year = ?2, summary = ?3 WHERE id = ?4",
             params![title, year, summary, id],
@@ -290,17 +364,13 @@ impl PlexDatabase {
         rating: Option<f64>,
     ) -> Result<usize> {
         let n = self.conn.execute(
-            "UPDATE metadata_items
-             SET title = ?1, year = ?2, summary = ?3,
-                 tagline = ?4, studio = ?5, rating = ?6
-             WHERE id = ?7",
+            "UPDATE metadata_items SET title=?1, year=?2, summary=?3, tagline=?4, studio=?5, rating=?6 WHERE id=?7",
             params![title, year, summary, tagline, studio, rating, id],
         )?;
         Ok(n)
     }
 
     pub fn batch_clear_locks(&self) -> Result<BatchUpdateResult> {
-        // Libère les metadata_items bloqués par un agent qui a planté
         let n = self.conn.execute(
             "UPDATE metadata_items SET refreshed_at = NULL WHERE refreshed_at IS NOT NULL",
             [],
