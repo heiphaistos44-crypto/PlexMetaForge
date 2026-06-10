@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "PlexMetaForge default capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "dialog:default"
+  ]
+}

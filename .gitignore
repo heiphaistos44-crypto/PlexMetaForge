@@ -1,0 +1,23 @@
+node_modules/
+out/
+.next/
+src-tauri/target/
+dist/
+.logs/
+.env
+.env.*
+!.env.example
+
+# Tauri gen (auto-generated)
+src-tauri/gen/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.suo
+*.user
