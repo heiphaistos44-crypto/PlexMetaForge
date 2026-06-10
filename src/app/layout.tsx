@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Plugins', icon: '🔌' },
   { href: '/editor', label: 'Métadonnées', icon: '🎬' },
+  { href: '/database', label: 'Base de données', icon: '🗄️' },
   { href: '/code-editor', label: 'Code', icon: '📝' },
 ];
 

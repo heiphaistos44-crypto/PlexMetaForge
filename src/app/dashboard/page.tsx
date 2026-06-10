@@ -8,6 +8,9 @@ import {
   listPlugins,
   togglePlugin,
   deletePlugin,
+  exportPlugin,
+  exportAllPlugins,
+  getExportDir,
 } from '@/lib/commands';
 import PluginCreator from '@/components/PluginCreator';
 
@@ -21,6 +24,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const [exportDir, setExportDir] = useState('');
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -36,7 +42,25 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); getExportDir().then(setExportDir).catch(() => {}); }, [loadData]);
+
+  const handleExportOne = async (plugin: Plugin) => {
+    setExporting(plugin.path); setExportMsg(null);
+    try {
+      const r = await exportPlugin(plugin.path);
+      setExportMsg(`✓ ${plugin.name} → ${r.zip_path} (${(r.size_bytes/1024).toFixed(0)} Ko)`);
+    } catch (e) { setError(String(e)); }
+    finally { setExporting(null); setTimeout(() => setExportMsg(null), 6000); }
+  };
+
+  const handleExportAll = async () => {
+    setExporting('all'); setExportMsg(null);
+    try {
+      const r = await exportAllPlugins();
+      setExportMsg(`✓ ${r.file_count} fichiers → ${r.zip_path} (${(r.size_bytes/1024).toFixed(0)} Ko)`);
+    } catch (e) { setError(String(e)); }
+    finally { setExporting(null); setTimeout(() => setExportMsg(null), 8000); }
+  };
 
   const handleToggle = async (plugin: Plugin) => {
     try {
@@ -93,6 +117,27 @@ export default function DashboardPage() {
           {error}
         </div>
       )}
+      {exportMsg && (
+        <div className="text-xs text-green-400 bg-green-900/20 border border-green-800/40 rounded p-2 font-mono break-all">
+          {exportMsg}
+        </div>
+      )}
+
+      {/* Export tous */}
+      {plugins.length > 0 && (
+        <div className="flex items-center gap-3 bg-plex-surface border border-plex-border rounded px-4 py-2">
+          <span className="text-xs text-plex-muted flex-1 truncate">
+            Export → <span className="font-mono">{exportDir || '~/Downloads/PlexMetaForge_Exports'}</span>
+          </span>
+          <button
+            onClick={handleExportAll}
+            disabled={exporting !== null}
+            className="text-xs px-3 py-1.5 rounded bg-plex-accent text-black font-semibold hover:bg-yellow-400 disabled:opacity-50 transition-colors"
+          >
+            {exporting === 'all' ? '…' : '⬇ Tout exporter'}
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-plex-surface p-1 rounded border border-plex-border">
@@ -138,6 +183,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleExportOne(plugin)}
+                      disabled={exporting === plugin.path}
+                      className="text-xs px-2 py-1 rounded bg-plex-border text-plex-muted hover:text-green-400 disabled:opacity-50 transition-colors"
+                    >
+                      {exporting === plugin.path ? '…' : '⬇'}
+                    </button>
                     {plugin.has_code && (
                       <button
                         onClick={() => handleEdit(plugin)}

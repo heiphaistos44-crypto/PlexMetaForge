@@ -1,10 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  BatchUpdateResult,
+  DatabaseStats,
+  ExportResult,
   InjectionReport,
   MediaItem,
   MetadataPayload,
   Plugin,
   PlexPaths,
+  PlexSection,
   PluginConfig,
   PluginTemplateMeta,
 } from './types';
@@ -39,6 +43,32 @@ export const writePluginCode = (path: string, content: string): Promise<void> =>
 // Database
 export const searchPlexDb = (query: string): Promise<MediaItem[]> =>
   invoke('search_plex_db', { query });
+
+// Export
+export const exportPlugin = (path: string, destDir?: string): Promise<ExportResult> =>
+  invoke('export_plugin', { path, destDir });
+
+export const exportAllPlugins = (destDir?: string): Promise<ExportResult> =>
+  invoke('export_all_plugins', { destDir });
+
+export const getExportDir = (): Promise<string> =>
+  invoke('get_export_dir');
+
+// Database
+export const getDbStats = (): Promise<DatabaseStats> =>
+  invoke('get_db_stats');
+
+export const getDbSections = (): Promise<PlexSection[]> =>
+  invoke('get_db_sections');
+
+export const getItemsBySection = (sectionId: number, limit?: number): Promise<MediaItem[]> =>
+  invoke('get_items_by_section', { sectionId, limit });
+
+export const getIncompleteItems = (limit?: number): Promise<MediaItem[]> =>
+  invoke('get_incomplete_items', { limit });
+
+export const dbBatchClearLocks = (): Promise<BatchUpdateResult> =>
+  invoke('db_batch_clear_locks');
 
 // Generator — templates
 export const getPluginTemplates = (): Promise<PluginTemplateMeta[]> =>

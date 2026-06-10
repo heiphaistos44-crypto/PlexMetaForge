@@ -28,6 +28,9 @@ pub enum PlexMetaForgeError {
 
     #[error("Environment variable missing: {0}")]
     EnvVar(String),
+
+    #[error("ZIP error: {0}")]
+    Zip(#[from] zip::result::ZipError),
 }
 
 pub type Result<T> = std::result::Result<T, PlexMetaForgeError>;

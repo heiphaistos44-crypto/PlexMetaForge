@@ -11,6 +11,13 @@ export interface MediaItem {
   year?: number;
   summary?: string;
   thumb?: string;
+  media_type?: string;
+  section_id?: number;
+  duration?: number;
+  rating?: number;
+  tagline?: string;
+  studio?: string;
+  originally_available_at?: string;
 }
 
 export interface MetadataPayload {
@@ -64,6 +71,37 @@ export interface PluginConfig {
   template: PluginTemplateId;
   tmdb_api_key?: string;
   lastfm_api_key?: string;
+}
+
+export interface ExportResult {
+  zip_path: string;
+  file_count: number;
+  size_bytes: number;
+}
+
+export interface DatabaseStats {
+  total_items: number;
+  movies: number;
+  shows: number;
+  episodes: number;
+  artists: number;
+  albums: number;
+  tracks: number;
+  sections: number;
+  items_with_thumb: number;
+  items_without_summary: number;
+}
+
+export interface PlexSection {
+  id: number;
+  name: string;
+  section_type: string;
+  location?: string;
+}
+
+export interface BatchUpdateResult {
+  updated: number;
+  errors: string[];
 }
 
 export interface PlexPaths {
