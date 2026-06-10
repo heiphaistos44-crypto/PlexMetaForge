@@ -5,6 +5,8 @@ import type {
   MetadataPayload,
   Plugin,
   PlexPaths,
+  PluginConfig,
+  PluginTemplateMeta,
 } from './types';
 
 // Config
@@ -37,6 +39,13 @@ export const writePluginCode = (path: string, content: string): Promise<void> =>
 // Database
 export const searchPlexDb = (query: string): Promise<MediaItem[]> =>
   invoke('search_plex_db', { query });
+
+// Generator — templates
+export const getPluginTemplates = (): Promise<PluginTemplateMeta[]> =>
+  invoke('get_plugin_templates');
+
+export const createPluginFromTemplate = (config: PluginConfig): Promise<string> =>
+  invoke('create_plugin_from_template', { config });
 
 // Module C — Moteur Hybride
 export const injectMetadata = (payload: MetadataPayload): Promise<InjectionReport> =>

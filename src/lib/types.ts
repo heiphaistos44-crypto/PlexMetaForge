@@ -42,6 +42,30 @@ export interface MediaNode {
   media_item?: MediaItem;
 }
 
+export type PluginTemplateId =
+  | 'blank'
+  | 'cinema'
+  | 'series'
+  | 'musique'
+  | 'anime'
+  | 'universal';
+
+export interface PluginTemplateMeta {
+  id: PluginTemplateId;
+  label: string;
+  icon: string;
+  description: string;
+  requires_tmdb: boolean;
+  requires_lastfm: boolean;
+}
+
+export interface PluginConfig {
+  name: string;
+  template: PluginTemplateId;
+  tmdb_api_key?: string;
+  lastfm_api_key?: string;
+}
+
 export interface PlexPaths {
   plugins_dir: string;
   database_path: string;

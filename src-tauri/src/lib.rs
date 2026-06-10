@@ -6,6 +6,7 @@ mod metadata;
 mod scanner;
 
 use config::PlexPaths;
+use generator::PluginConfig;
 use metadata::{InjectionReport, MetadataPayload};
 use std::sync::Mutex;
 use tauri::State;
@@ -77,6 +78,73 @@ fn create_plugin(name: String, state: State<AppState>) -> Result<String, String>
 }
 
 #[tauri::command]
+fn create_plugin_from_template(
+    config: PluginConfig,
+    state: State<AppState>,
+) -> Result<String, String> {
+    let guard = state.plex_paths.lock().unwrap();
+    let paths = guard
+        .as_ref()
+        .ok_or_else(|| "Plex paths non initialisés".to_string())?;
+    generator::create_plugin_from_config(&paths.plugins_dir, &config)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_plugin_templates() -> serde_json::Value {
+    serde_json::json!([
+        {
+            "id": "blank",
+            "label": "Vierge",
+            "icon": "📄",
+            "description": "Structure minimale. Tu codes tout toi-même.",
+            "requires_tmdb": false,
+            "requires_lastfm": false
+        },
+        {
+            "id": "cinema",
+            "label": "Films",
+            "icon": "🎬",
+            "description": "Agent complet pour les films. Récupère titres, synopsis, posters, casting, réalisateurs depuis TMDB.",
+            "requires_tmdb": true,
+            "requires_lastfm": false
+        },
+        {
+            "id": "series",
+            "label": "Séries TV",
+            "icon": "📺",
+            "description": "Agent séries avec épisodes, saisons, vignettes et casting complet depuis TMDB.",
+            "requires_tmdb": true,
+            "requires_lastfm": false
+        },
+        {
+            "id": "musique",
+            "label": "Musique",
+            "icon": "🎵",
+            "description": "Double agent Artiste + Album. Biographies, jaquettes, pistes via Last.fm.",
+            "requires_tmdb": false,
+            "requires_lastfm": true
+        },
+        {
+            "id": "anime",
+            "label": "Anime / Manga",
+            "icon": "⛩️",
+            "description": "Spécialisé anime et manga via AniList. Titres JP/FR/EN, personnages, doubleurs. Sans clé API.",
+            "requires_tmdb": false,
+            "requires_lastfm": false
+        },
+        {
+            "id": "universal",
+            "label": "Universel (All-in-one)",
+            "icon": "🌐",
+            "description": "Couvre films, séries, anime et musique. Détection automatique du type. TMDB + AniList + Last.fm.",
+            "requires_tmdb": true,
+            "requires_lastfm": false
+        }
+    ])
+}
+
+#[tauri::command]
 fn read_plugin_code(path: String) -> Result<String, String> {
     let init_path = std::path::PathBuf::from(&path)
         .join("Contents")
@@ -143,6 +211,8 @@ pub fn run() {
             toggle_plugin,
             delete_plugin,
             create_plugin,
+            create_plugin_from_template,
+            get_plugin_templates,
             read_plugin_code,
             write_plugin_code,
             search_plex_db,
