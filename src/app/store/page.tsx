@@ -7,11 +7,16 @@ import { getStoreCatalog, getStoreCategories, installStorePlugin, getInstalledPl
 type Filter = { category: string; subcategory: string };
 
 const EMOJI: Record<string, string> = {
-  'Films': '🎬', 'Séries TV': '📺', 'Anime / Manga': '⛩️',
-  'Musique': '🎵', 'Audiobooks': '📚', 'Comics': '📖',
-  'Multi-langues': '💬', 'Français': '🇫🇷',
-  'Utilitaires': '🔧', 'Scanners': '🔍', 'IPTV': '📡', 'Podcast': '🎙️', 'Sync': '🔄',
+  // Catégories principales
   'Métadonnées': '🏷️', 'Sous-titres': '💬', 'Outils': '🛠️',
+  // Métadonnées sous-catégories
+  'Films': '🎬', 'Séries TV': '📺', 'Anime / Manga': '⛩️',
+  'Musique': '🎵', 'Concerts & Lives': '🎤', 'Audiobooks': '📚',
+  'Podcasts': '🎙️', 'Comics & BD': '📖', 'Jeux Vidéo': '🎮', 'Sports': '⚽',
+  // Sous-titres sous-catégories
+  'Multi-langues': '🌍', 'Français': '🇫🇷', 'Autre langue': '🗣️',
+  // Outils sous-catégories
+  'Utilitaires': '🔧', 'Scanners': '🔍', 'IPTV': '📡', 'Sync': '🔄',
 };
 
 export default function StorePage() {
