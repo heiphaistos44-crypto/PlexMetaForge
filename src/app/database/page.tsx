@@ -36,7 +36,7 @@ export default function DatabasePage() {
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const loadSection = async (id: number) => {
-    setSelectedSection(id); setLoading(true); setError(null);
+    setSelectedSection(id); setMode('sections'); setLoading(true); setError(null);
     try { setItems(await getItemsBySection(id, 200)); }
     catch (e) { setError(String(e)); }
     finally { setLoading(false); }

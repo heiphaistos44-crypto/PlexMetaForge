@@ -561,28 +561,44 @@ pub async fn download_and_install(
 }
 
 fn find_zip_root(archive: &mut zip::ZipArchive<std::io::Cursor<Vec<u8>>>, bundle_name: &str) -> Result<String> {
-    // Cherche un dossier dont le nom contient le bundle_name (sans .bundle)
-    let stem = bundle_name.trim_end_matches(".bundle").to_lowercase();
+    let stem = bundle_name
+        .trim_end_matches(".bundle")
+        .to_lowercase()
+        .replace(['-', '_'], "");
 
+    // Collect all top-level directory entries (no '/' in name except trailing)
+    let mut top_dirs: Vec<String> = Vec::new();
     for i in 0..archive.len() {
         let file = archive.by_index(i)?;
         let name = file.name().to_string();
         if name.ends_with('/') {
-            let folder = name.trim_end_matches('/').to_lowercase();
-            // ex: "hama.bundle-master" contient "hama"
-            if folder.contains(&stem) || folder.contains("master") || folder.contains("main") {
-                return Ok(name.to_string());
+            // Top-level: no slash before the trailing slash
+            let trimmed = name.trim_end_matches('/');
+            if !trimmed.contains('/') {
+                top_dirs.push(name.clone());
             }
         }
     }
 
-    // Fallback : prend le premier dossier racine
-    for i in 0..archive.len() {
-        let file = archive.by_index(i)?;
-        let name = file.name().to_string();
-        if name.ends_with('/') && !name[..name.len()-1].contains('/') {
-            return Ok(name);
+    // Priority 1: exact stem match
+    for dir in &top_dirs {
+        let folder_norm = dir.trim_end_matches('/').to_lowercase().replace(['-', '_'], "");
+        if folder_norm.contains(&stem) {
+            return Ok(dir.clone());
         }
+    }
+
+    // Priority 2: GitHub archive suffix patterns (e.g. Hama.bundle-master/, repo-main/)
+    for dir in &top_dirs {
+        let lower = dir.to_lowercase();
+        if lower.contains("-master/") || lower.contains("-main/") || lower.ends_with("-master/") {
+            return Ok(dir.clone());
+        }
+    }
+
+    // Fallback: first top-level dir
+    if let Some(first) = top_dirs.into_iter().next() {
+        return Ok(first);
     }
 
     Err(PlexMetaForgeError::PlexApi(

@@ -43,9 +43,19 @@ pub fn list_plugins(plugins_dir: &PathBuf) -> Result<Vec<Plugin>> {
 }
 
 pub fn toggle_plugin(plugin_path: &PathBuf, enable: bool) -> Result<String> {
+    let current = plugin_path.to_string_lossy().to_string();
+    let is_disabled = current.ends_with(".disabled");
+
+    // Already in the desired state — no-op
+    if enable && !is_disabled {
+        return Ok(current);
+    }
+    if !enable && is_disabled {
+        return Ok(current);
+    }
+
     backup_plugin(plugin_path)?;
 
-    let current = plugin_path.to_string_lossy().to_string();
     let new_path = if enable {
         PathBuf::from(current.trim_end_matches(".disabled"))
     } else {

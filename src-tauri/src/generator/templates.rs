@@ -92,6 +92,7 @@ class __NAME__(Agent.Movies):
         metadata.title = media.name
 "##;
 
+#[allow(dead_code)]
 pub fn blank_init_py(name: &str) -> String { inject_name(BLANK_TEMPLATE, name) }
 
 // ─── Cinema (Films — TMDB) ────────────────────────────────────

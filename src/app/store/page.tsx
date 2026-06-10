@@ -62,10 +62,13 @@ export default function StorePage() {
     return matchCat && matchSearch;
   });
 
-  // Normalise l'ID pour comparer avec les bundles installés
+  // Compare bundle names directement (sans normalisation trop agressive)
   const isInstalled = (plugin: StorePlugin) => {
-    const norm = (s: string) => s.toLowerCase().replace(/[-_.bundle\s]/g, '');
-    return [...installed].some((id) => norm(id).includes(norm(plugin.id)) || norm(plugin.bundle_name).includes(norm(id)));
+    const bundleBase = plugin.bundle_name.toLowerCase().replace('.bundle', '').replace('.disabled', '');
+    return [...installed].some((id) => {
+      const idBase = id.toLowerCase().replace('.bundle', '').replace('.disabled', '');
+      return idBase === bundleBase || idBase.includes(bundleBase) || bundleBase.includes(idBase);
+    });
   };
 
   return (

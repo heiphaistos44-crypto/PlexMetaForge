@@ -102,13 +102,15 @@ impl PlexDatabase {
     // ─── Sections ───────────────────────────────────────────
 
     pub fn get_sections(&self) -> Result<Vec<PlexSection>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT ls.id, ls.name, ls.section_type, lsp.root_path
+        // Try with location join first; fall back if table/column doesn't exist
+        let sql_with_loc = "SELECT ls.id, ls.name, ls.section_type, lsp.root_path
              FROM library_sections ls
              LEFT JOIN library_section_locations lsp ON lsp.library_section_id = ls.id
-             GROUP BY ls.id
-             ORDER BY ls.name"
-        )?;
+             GROUP BY ls.id ORDER BY ls.name";
+        let sql_no_loc = "SELECT id, name, section_type, NULL FROM library_sections ORDER BY name";
+
+        let mut stmt = self.conn.prepare(sql_with_loc)
+            .or_else(|_| self.conn.prepare(sql_no_loc))?;
 
         let rows = stmt.query_map([], |row| {
             Ok(PlexSection {
@@ -276,6 +278,7 @@ impl PlexDatabase {
         Ok(n)
     }
 
+    #[allow(dead_code)]
     pub fn update_metadata_full(
         &self,
         id: i64,
@@ -305,6 +308,7 @@ impl PlexDatabase {
         Ok(BatchUpdateResult { updated: n, errors: vec![] })
     }
 
+    #[allow(dead_code)]
     pub fn update_thumb(&self, id: i64, thumb_url: &str) -> Result<usize> {
         let n = self.conn.execute(
             "UPDATE metadata_items SET user_thumb_url = ?1 WHERE id = ?2",

@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 use crate::error::{PlexMetaForgeError, Result};

@@ -108,6 +108,12 @@ fn try_sqlite_update(
 }
 
 async fn download_image(url: &str, dest: &PathBuf) -> Result<()> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(PlexMetaForgeError::PlexApi(format!(
+            "URL invalide (doit commencer par http/https) : {}",
+            url
+        )));
+    }
     let resp = reqwest::get(url).await.map_err(PlexMetaForgeError::Http)?;
     if !resp.status().is_success() {
         return Err(PlexMetaForgeError::PlexApi(format!(
@@ -117,6 +123,9 @@ async fn download_image(url: &str, dest: &PathBuf) -> Result<()> {
         )));
     }
     let bytes = resp.bytes().await.map_err(PlexMetaForgeError::Http)?;
+    if bytes.is_empty() {
+        return Err(PlexMetaForgeError::PlexApi(format!("Image vide reçue depuis : {}", url)));
+    }
     std::fs::write(dest, bytes)?;
     Ok(())
 }

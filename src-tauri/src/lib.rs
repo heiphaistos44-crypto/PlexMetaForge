@@ -52,18 +52,18 @@ async fn test_plex_connection(state: State<'_, AppState>) -> Result<String, Stri
 
 #[tauri::command]
 fn get_plex_paths(state: State<AppState>) -> Result<serde_json::Value, String> {
-    let s = state.settings.lock().unwrap();
-    let guard = state.plex_paths.lock().unwrap();
+    // Clone settings first, then drop lock before acquiring plex_paths lock
+    let (custom_plugins, custom_db) = {
+        let s = state.settings.lock().unwrap();
+        (s.custom_plugins_dir.clone(), s.custom_db_path.clone())
+    };
 
-    // Résout les chemins : custom en priorité, sinon auto-détectés
-    let plugins_dir = s.custom_plugins_dir
-        .as_deref()
+    let plugins_dir = custom_plugins
         .map(std::path::PathBuf::from)
-        .or_else(|| guard.as_ref().map(|p| p.plugins_dir.clone()));
-    let db_path = s.custom_db_path
-        .as_deref()
+        .or_else(|| state.plex_paths.lock().unwrap().as_ref().map(|p| p.plugins_dir.clone()));
+    let db_path = custom_db
         .map(std::path::PathBuf::from)
-        .or_else(|| guard.as_ref().map(|p| p.database_path.clone()));
+        .or_else(|| state.plex_paths.lock().unwrap().as_ref().map(|p| p.database_path.clone()));
 
     match (plugins_dir, db_path) {
         (Some(pd), Some(db)) => Ok(serde_json::json!({
@@ -262,15 +262,17 @@ fn resolve_plugins_dir(state: &State<AppState>) -> Result<std::path::PathBuf, St
 }
 
 fn resolve_plex_paths(state: &State<AppState>) -> Option<PlexPaths> {
-    let s = state.settings.lock().unwrap();
+    // Clone settings first to avoid holding two locks simultaneously
+    let (custom_plugins, custom_db) = {
+        let s = state.settings.lock().unwrap();
+        (s.custom_plugins_dir.clone(), s.custom_db_path.clone())
+    };
     let guard = state.plex_paths.lock().unwrap();
     let base = guard.as_ref()?;
-    let plugins_dir = s.custom_plugins_dir
-        .as_deref()
+    let plugins_dir = custom_plugins
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| base.plugins_dir.clone());
-    let database_path = s.custom_db_path
-        .as_deref()
+    let database_path = custom_db
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| base.database_path.clone());
     Some(PlexPaths { plugins_dir, database_path })
