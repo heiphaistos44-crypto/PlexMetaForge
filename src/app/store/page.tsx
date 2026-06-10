@@ -231,21 +231,29 @@ export default function StorePage() {
                         className="text-xs px-2 py-1.5 rounded bg-plex-bg border border-plex-border text-plex-muted hover:text-plex-text transition-colors">
                         GitHub
                       </a>
-                      <button
-                        onClick={() => handleInstall(plugin)}
-                        disabled={disabled}
-                        className={`text-xs px-3 py-1.5 rounded font-semibold transition-colors disabled:opacity-40 ${
-                          inst
-                            ? 'bg-blue-900/40 text-blue-400 hover:bg-blue-900/60'
-                            : 'bg-plex-accent text-black hover:bg-yellow-400'
-                        }`}>
-                        {busy ? '⬇ Installation…' : inst ? '↻ Mettre à jour' : '⬇ Installer'}
-                      </button>
+                      {plugin.verified !== false && (
+                        <button
+                          onClick={() => handleInstall(plugin)}
+                          disabled={disabled}
+                          className={`text-xs px-3 py-1.5 rounded font-semibold transition-colors disabled:opacity-40 ${
+                            inst
+                              ? 'bg-blue-900/40 text-blue-400 hover:bg-blue-900/60'
+                              : 'bg-plex-accent text-black hover:bg-yellow-400'
+                          }`}>
+                          {busy ? '⬇ Installation…' : inst ? '↻ Mettre à jour' : '⬇ Installer'}
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-xs text-plex-muted leading-relaxed">{plugin.description}</p>
+                  {/* Description — info card styled differently */}
+                  {plugin.verified === false ? (
+                    <div className="text-xs text-orange-300 bg-orange-900/20 border border-orange-700/40 rounded p-2.5 leading-relaxed">
+                      ℹ️ {plugin.description}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-plex-muted leading-relaxed">{plugin.description}</p>
+                  )}
 
                   {/* Tags */}
                   <div className="flex gap-1 flex-wrap">
