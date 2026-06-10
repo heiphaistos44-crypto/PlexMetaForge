@@ -6,10 +6,12 @@ mod generator;
 mod metadata;
 mod scanner;
 mod settings;
+mod store;
 
 use config::PlexPaths;
 use database::{BatchUpdateResult, DatabaseStats, MediaItem, PlexSection};
 use export::ExportResult;
+use store::{InstallResult, StorePlugin};
 use generator::PluginConfig;
 use metadata::{InjectionReport, MetadataPayload};
 use settings::AppSettings;
@@ -140,6 +142,37 @@ fn read_plugin_code(path: String) -> Result<String, String> {
 fn write_plugin_code(path: String, content: String) -> Result<(), String> {
     let init = std::path::PathBuf::from(&path).join("Contents").join("Code").join("__init__.py");
     std::fs::write(init, content).map_err(|e| e.to_string())
+}
+
+// ─── Store ────────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_store_catalog() -> Vec<StorePlugin> {
+    store::catalog()
+}
+
+#[tauri::command]
+async fn install_store_plugin(
+    zip_url: String,
+    bundle_name: String,
+    state: State<'_, AppState>,
+) -> Result<InstallResult, String> {
+    let plugins_dir = resolve_plugins_dir(&state)?;
+    store::download_and_install(&zip_url, &bundle_name, &plugins_dir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_installed_plugin_ids(state: State<AppState>) -> Vec<String> {
+    let Ok(plugins_dir) = resolve_plugins_dir(&state) else { return vec![]; };
+    let Ok(plugins) = scanner::list_plugins(&plugins_dir) else { return vec![]; };
+    plugins.into_iter().map(|p| {
+        p.name
+            .trim_end_matches(".bundle")
+            .to_lowercase()
+            .replace(['-', '_', ' '], "")
+    }).collect()
 }
 
 // ─── Export ───────────────────────────────────────────────────
@@ -283,6 +316,8 @@ pub fn run() {
             // Generator
             create_plugin, create_plugin_from_template, get_plugin_templates,
             read_plugin_code, write_plugin_code,
+            // Store
+            get_store_catalog, install_store_plugin, get_installed_plugin_ids,
             // Export
             export_plugin, export_all_plugins, get_export_dir,
             // Database

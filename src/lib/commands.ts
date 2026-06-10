@@ -5,6 +5,7 @@ import type {
   DatabaseStats,
   ExportResult,
   InjectionReport,
+  InstallResult,
   MediaItem,
   MetadataPayload,
   Plugin,
@@ -12,6 +13,7 @@ import type {
   PlexSection,
   PluginConfig,
   PluginTemplateMeta,
+  StorePlugin,
 } from './types';
 
 // Settings
@@ -51,6 +53,16 @@ export const writePluginCode = (path: string, content: string): Promise<void> =>
 // Database
 export const searchPlexDb = (query: string): Promise<MediaItem[]> =>
   invoke('search_plex_db', { query });
+
+// Store
+export const getStoreCatalog = (): Promise<StorePlugin[]> =>
+  invoke('get_store_catalog');
+
+export const installStorePlugin = (zipUrl: string, bundleName: string): Promise<InstallResult> =>
+  invoke('install_store_plugin', { zipUrl, bundleName });
+
+export const getInstalledPluginIds = (): Promise<string[]> =>
+  invoke('get_installed_plugin_ids');
 
 // Export
 export const exportPlugin = (path: string, destDir?: string): Promise<ExportResult> =>

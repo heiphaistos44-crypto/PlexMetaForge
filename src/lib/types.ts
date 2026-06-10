@@ -73,6 +73,27 @@ export interface PluginConfig {
   lastfm_api_key?: string;
 }
 
+export interface StorePlugin {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  category: string;
+  tags: string[];
+  license: string;
+  stars: string;
+  github_url: string;
+  zip_url: string;
+  bundle_name: string;
+  verified: boolean;
+}
+
+export interface InstallResult {
+  bundle_path: string;
+  bundle_name: string;
+  already_existed: boolean;
+}
+
 export interface AppSettings {
   plex_url: string;
   plex_token: string;
